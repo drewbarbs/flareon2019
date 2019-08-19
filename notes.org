@@ -1,0 +1,81 @@
+* General
+All the challenges come in a .7z file with password "flare"
+
+* 1 Memecat
+zip password is "flare"
+
+This is a .NET executable
+
+The binary has two forms. Each with a validate function. The first one
+clearly compares to "RAINBOW". The second XORs the text box value with
+'A' and compares to a key. The input needs to be Bagel_Cannon to make
+the match.
+
+key:
+#+begin_src text
+Kitteh_save_galixy@flare-on.com
+#+end_src
+
+* 2 Overlong
+
+radare2 immediately decodes the string:
+#+begin_src text
+I_a_M_t_h_e_e_n_C_o_D_i_n_g@flare-on.com
+#+end_src
+
+You just need to extend the length passed to the decoding function and
+run the bin, that will also pritn the key.
+
+* 3 Flarebear
+Flag:
+#+begin_src text
+th4t_was_be4rly_a_chall3nge@flare-on.com
+#+end_src
+
+Used [[https://github.com/budtmo/docker-android][this]] emulator
+
+
+It's an apk, so might need to get  an emulator goign?
+
+Used dex2jar. See the FlareBearActivity has a getPassword function
+that gives decryption key?
+
+The isEcstatic function checks for mass of 72, happy of 30, clean of
+false (0)
+
+
+clean increments mass by 0, happy by -1, clean by 6
+feed increments mass by 10, happy by 2, clean by -1
+play increments mass by -2, happy by 4, clean by -1
+
+Linear system:
+
+#+begin_src python
+import numpy as np
+from numpy.linalg import inv
+
+# First column corresponds to "clean",
+# second to "feed", third to "play"
+A = np.array([
+    [0, 10, -2], # delta mass
+    [-1, 2, 4],  # delta happy
+    [6, -1, -1]])# delta clean
+
+# target: 72 mass, 30 happy, 0 clean
+b = np.array([
+    [72],
+    [30],
+    [0]
+    ])
+
+print(inv(A) @ b)
+#+end_src
+
+
+
+8 * feed  = 80, 16, -8
+8 * play  = -16
+
+*need 2 cleans, 8 feeds, 4 plays*
+* 4 DNSChess
+This is reportedly an ubuntu binary
