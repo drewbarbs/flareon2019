@@ -78,4 +78,32 @@ print(inv(A) @ b)
 
 *need 2 cleans, 8 feeds, 4 plays*
 * 4 DNSChess
+Flag:
+
+#+begin_src text
+LooksLikeYouLockedUpTheLookupZ@flare-on.com
+#+end_src
+
+
 This is reportedly an ubuntu binary
+
+We get a PCAP, a shared object, and an ELF
+
+Looking at pcap first, I clearly see chess moves in queries, do
+responses have moves as well?
+
+
+Looks like the flag is xor'd 2 bytes at a time with the second byte of
+the returned address.
+
+Expecting game over in 15 moves.
+
+The key is encoded in the return addresses for the DNS queries
+
+The checks in =getNextMove= show you which responses you need to use in
+what order.
+
+First, the last octet of the IP address needs to be even. There are 15
+such responses. Then, the last 4 bits of the second-to-last octet need
+to be equal to the move number (this gives an ordering). The key byte
+is composed of the second octet of those ips in that order. See =do.py=.
