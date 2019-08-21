@@ -107,3 +107,101 @@ First, the last octet of the IP address needs to be even. There are 15
 such responses. Then, the last 4 bits of the second-to-last octet need
 to be equal to the move number (this gives an ordering). The key byte
 is composed of the second octet of those ips in that order. See =do.py=.
+
+* 5 demo
+
+Flag:
+
+#+begin_src text
+moar_poetry@flare-on.com
+#+end_src
+
+** Solution
+
+Dump binary after it's been decrypted and is in render loop. Figure
+out the binary creates /two/ meshes, and renders them with different
+transforms. Figure one of them must be the flare logo, the other the
+flag.
+
+Do some patching in the =Update= function. NOP-out (replace with =add
+esp, N= instructions) the =D3DXMatrixMultiply= and =SetTransform= calls
+preceding draw of flag mesh. As well as NOP out logo mesh.
+
+** Notes
+
+Looks like the demo decrypts itself. It's got a single =rwx= section.
+
+Unpacking to address 0x420000
+
+Try setting breakpoint on load of user32:
+
+#+begin_src text
+sxe ld:user32.dll
+#+end_src
+
+Loaded by code in =0x420000= range. Where is that code written?
+
+There's an =rcl= instruction at =400011= that updates that value. That's
+/behind/ the entry point
+
+#+begin_src text
+bp 40000f
+bp 400011
+#+end_src
+
+Difference in mappings at the beginning and after render loop is
+happening:
+
+before:
+
+#+begin_src text
++   400000   401000     1000 MEM_IMAGE   MEM_COMMIT  PAGE_EXECUTE_READWRITE             Image      [image00400000; "image00400000"]
+    401000   800000   3ff000 MEM_IMAGE   MEM_COMMIT  PAGE_EXECUTE_WRITECOPY             Image      [image00400000; "image00400000"]
+    800000 1f83b6eb 1f03b6eb MEM_IMAGE   MEM_COMMIT  PAGE_EXECUTE_READWRITE             Image      [image00400000; "image00400000"]
+#+end_src
+
+at LoadLibrary of user32
+
+#+begin_src text
++   400000   41f000    1f000 MEM_IMAGE   MEM_COMMIT  PAGE_EXECUTE_WRITECOPY             Image      [image00400000; "image00400000"]
+    41f000 1f83b6eb 1f41c6eb MEM_IMAGE   MEM_COMMIT  PAGE_EXECUTE_READWRITE             Image      [image00400000; "image00400000"]
+  1f83b6eb 1f83c000      915 MEM_IMAGE   MEM_COMMIT  PAGE_EXECUTE_READWRITE             <unknown>  [................]
+#+end_src
+
+
+at render loop:
+
+#+begin_src text
++   400000   401000     1000 MEM_IMAGE   MEM_COMMIT  PAGE_EXECUTE_READWRITE             Image      [image00400000; "image00400000"]
+    401000   41f000    1e000 MEM_IMAGE   MEM_COMMIT  PAGE_EXECUTE_WRITECOPY             Image      [image00400000; "image00400000"]
+    41f000 1f83b6eb 1f41c6eb MEM_IMAGE   MEM_COMMIT  PAGE_EXECUTE_READWRITE             Image      [image00400000; "image00400000"]
+#+end_src
+
+Looks like a symbol table is being assembled at 430000.
+
+After the demo is running we have
+
+#+begin_src text
+00430000  751f48d7 kernel32!LoadLibraryA
+00430004  76ebd23e user32!CreateWindowExA
+00430008  76ec4713 user32!GetAsyncKeyState
+0043000c  76eb7d2f user32!GetSystemMetrics
+00430010  76eb7f34 user32!GetWindowRect
+00430014  76f0fdae user32!MessageBoxA
+00430018  76eb8e4e user32!NtUserSetWindowPos
+0043001c  71850a62 d3d9!Direct3DCreate9
+00430020  73fa350b d3dx9_43!D3DXComputeNormals
+00430024  73f98b4e d3dx9_43!D3DXCreateMeshFVF
+00430028  73f628d9 d3dx9_43!D3DXMatrixLookAtLH
+0043002c  73f60f00 d3dx9_43!D3DXMatrixMultiply
+00430030  73f62bf3 d3dx9_43!D3DXMatrixPerspectiveFovLH
+00430034  73f61afa d3dx9_43!D3DXMatrixRotationY
+00430038  73f619df d3dx9_43!D3DXMatrixTranslation
+#+end_src
+
+Page at 430000 written at 4000c8
+
+On entry to =420000=, pointer to PEB is on stack (so =pop eax= loads =pPEB=
+into =eax=)
+
+** TODO See how this is done quickly...
