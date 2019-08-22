@@ -348,3 +348,5 @@ The clrjit vftable looks like this:
 The IncrementMaxStack bit screws with the IL of the =Program.h= and
 =Program.g= methods (can use dnSpy's right click->goto MD token feature
 to quickly find that).
+
+* 7 wopr
