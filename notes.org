@@ -205,3 +205,146 @@ On entry to =420000=, pointer to PEB is on stack (so =pop eax= loads =pPEB=
 into =eax=)
 
 ** TODO See how this is done quickly...
+* 6 bmphide
+
+Flag: (run =solve.py= on =image.bmp=, then /again/ on the BMP that extracts..)
+#+begin_src text
+d0nT_tRu$t_vEr1fy@flare-on.com
+#+end_src
+
++Uses steghide? The binary is a .NET assembly+
+
+Note that in .NET, args to Main /do not/ include name of the executable
+file. [[https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/inside-a-program/hello-world-your-first-program][src]]
+
+Usage is:
+1st arg: path to bitmap
+2nd arg: path to file to incorporate into image
+3rd arg: path to output bitmap
+
+Can't debug with dnSpy? I get a stack overflow
+exception on start....
+
+Through a combination of using windbg to break on
+LoadLibrary/GetProcAddress and looking at =Program.IdentifyLocals= decompilation
+in dnSpy, I figure out that =IdentifyLocals= is hooking =compileMethod=.
+Pointer to original is saved in =A.originalDelegate=, replaced with
+=A.IncrementMaxStack=, which will edit IL before compilation. This
+causes stack overflow on debug as =compileMethod= is called to JIT the
+=IncrementMaxStack= method...
+
+The =Init= method swaps method pointers using [[https://stackoverflow.com/questions/39213674/c-sharp-changing-methods-pointers-net-3-5][this]] technique.
+
+#+begin_src text
+Program.a <- Program.b
+Program.c <- Program.d
+#+end_src
+
+The =IdentifyLocals= function does some kind of changing of the calling
+convention thing that ends up causing the overflow..
+
+** Solve
+Iterate over the image in /column major/ order, extract "transformed"
+bytes.
+
+Iterate over transformed bytes, reverse the conversion.
+
+** Modifications
+
+- Edit =a= to return =Program.b(b, r)=
+- Edit =c= to return =Program.d(b, r)=
+- Edit the IL of =h=:
+  - write byte 20 (0x14) to offset 23 in IL (call to =Program.f= becomes call
+    to =Program.g=)
+  - write byte 20 (0x14) to offset 62 in IL (another kind of relative call ofset)
+- Edit the IL of =g=:
+
+  Changes the function body to be:
+
+  #+begin_src java
+public static byte g(int idx)
+{
+	byte b = (byte)((long)(idx + 1) * (long)((ulong)309030853));
+	byte k = (byte)((idx + 2) * 209897853);
+	return Program.e(b, k);
+}
+  #+end_src
+
+
+
+  - write int32 309030853 to offset 6 in IL
+
+    0x126b6fc5
+
+    little endian: c5 6f 6b 12
+
+  - write int32 209897853 to offset 18 in IL
+
+    0xc82c97d
+
+    little endian: 7d c9 82 0c
+
+
+*I've verified that my modified executable produces image with the same
+hash as the unmodified one.*
+
+
+** =IdentifyLocals=
+
+Calls =LoadLibraryA= with =clrjit.dll=
+
+#+begin_src c
+private unsafe static void IdentifyLocals()
+		{
+			ulong* ptr = stackalloc ulong[(UIntPtr)16];
+			bool flag = A.ver4;
+			if (flag)
+			{
+				,*ptr = 7218835248827755619UL; // ptr to string "clrjit.dll"
+				ptr[1] = 27756UL;
+			}
+			else
+			{
+				,*ptr = 8388352820681864045UL;
+				ptr[1] = 1819042862UL;
+			}
+			IntPtr lib = A.LoadLibrary(new string((sbyte*)ptr));
+			,*ptr = 127995569530215UL; // ptr to string "getJit"
+			A.getJit getJit = (A.getJit)Marshal.GetDelegateForFunctionPointer(A.GetProcAddress(lib, new string((sbyte*)ptr)), typeof(A.getJit));
+			IntPtr jitVfTable = *getJit(); // clrjit!CILJit::`vftable'
+			IntPtr pCompileMethod = *(IntPtr*)((void*)jitVfTable);
+			bool flag2 = IntPtr.Size == 8;
+			IntPtr pCompileMethodTrampoline;
+			uint flNewProtect;
+			if (flag2)
+			{
+				pCompileMethodTrampoline = Marshal.AllocHGlobal(16);
+				ulong* ptr2 = (ulong*)((void*)pCompileMethodTrampoline);
+				*ptr2 = 18446744073709533256UL;// mov rax, -1; jmp eax
+				ptr2[1] = 10416984890032521215UL;
+				A.VirtualProtect(pCompileMethodTrampoline, 12u, PAGE_EXECUTE_READWRITE, out flNewProtect);
+				Marshal.WriteIntPtr(pCompileMethodTrampoline, 2, pCompileMethod);
+			}
+			else
+			{
+				pCompileMethodTrampoline = Marshal.AllocHGlobal(8);
+				ulong* ptr3 = (ulong*)((void*)pCompileMethodTrampoline);
+				*ptr3 = 10439625411221520312UL; // mov eax, -1; jmp eax
+				A.VirtualProtect(pCompileMethodTrampoline, 7u, PAGE_EXECUTE_READWRITE, out flNewProtect);
+				Marshal.WriteIntPtr(pCompileMethodTrampoline, 1, pCompileMethod); // write pointer at offset 1
+			}
+			A.originalDelegate = (A.locateNativeCallingConvention)Marshal.GetDelegateForFunctionPointer(pCompileMethodTrampoline, typeof(A.locateNativeCallingConvention));
+			A.handler = new A.locateNativeCallingConvention(A.IncrementMaxStack);
+			RuntimeHelpers.PrepareDelegate(A.originalDelegate);
+			RuntimeHelpers.PrepareDelegate(A.handler);
+			A.VirtualProtect(jitVfTable, (uint)IntPtr.Size, 64u, out flNewProtect);
+			Marshal.WriteIntPtr(jitVfTable, Marshal.GetFunctionPointerForDelegate<A.locateNativeCallingConvention>(A.handler));
+			A.VirtualProtect(jitVfTable, (uint)IntPtr.Size, flNewProtect, out flNewProtect);
+		}
+#+end_src
+
+The clrjit vftable looks like this:
+
+The IncrementMaxStack bit screws with the IL of the =Program.h= and
+=Program.g= methods (can use dnSpy's right click->goto MD token feature
+to quickly find that).
