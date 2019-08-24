@@ -350,3 +350,87 @@ The IncrementMaxStack bit screws with the IL of the =Program.h= and
 to quickly find that).
 
 * 7 wopr
+
+Flag:
+#+begin_src text
+L1n34R_4L93bR4_i5_FuN@flare-on.com
+#+end_src
+
+
+First step: remove the "dynamic base" characteristic using CFF explorer.
+
+Looking through strings I see =PyUnicode=..., embedded python
+interpreter?
+
+Using Process Monitor I see it writes a bunch of stuff out to a folder
+in =AppData\Local\Temp=.
+
+Sets =_MEIPASS2=C:\Users\IEUser\AppData\Local\Temp\_MEI5602= ; this is
+probably used as a signal pointing to where the stuff has been written?
+
+Probably something to =this\key= in that temp folder
+
+exec main script at 402160?
+
+Look at =do_loadlib_python= in ghidra
+
+Run =.childdbg= to enable tracing child process in windbg
+
+Dump the marshalled code:
+
+1. dump pymarshal_readobjectfromstring argument
+2. Load in python with marshal.load
+
+Turns out this loading a common bit of code from PyInstaller (lots of
+google hits): pyiboot01_bootstrap.py
+
+Loads:
+-  pyiboot01_bootstrap.py
+- pyiboot02_cleanup.py
+
+Execution of pyiboot02_cleanup.py seems to be where the actual game
+logic is (that PyEval call blocks...)
+
+Dumped the 2nd code object, got source with uncompyle6:
+
+#+begin_src python
+import marshal
+import uncompyle6
+
+with open('boot2.bin', 'rb') as f:
+    co = marshal.load(f)
+
+with open('out.py', 'w') as out:
+    uncompyle6.main.decompile(3.7, co, out)
+#+end_src
+
+*Break on lzma decode and dump when it succeeds?*
+
+That gets =compressed.bin=, which we can =xzcat= to get the game
+
+break on module load _lzma. then set conditional breakpoint:
+
+#+begin_src text
+bp _lzma+1e4f ".if (eax) {} .else {gc}"
+#+end_src
+
+Edit the source in memory to get it to print out what we compare to
+
+#+begin_src text
+.childdbg 1
+g
+sxe ld _lzma
+bp _lzma+1e4f ".if (eax) {} .else {gc}"
+s -a 0 L?80000000 "t.typewrite('GREETINGS"
+# write at matches
+ea <match> "exec('repr(h) is', repr(h)) #"
+#+end_src
+
+#+begin_src python
+h = [115, 29, 32, 68, 106, 108, 89, 76, 21, 71, 78, 51, 75, 1, 55, 102]
+#+end_src
+
+Use =solve.py= to get solution
+
+** Is it important to understand the structure passed to run_main?
+Or can I just dump the python code object passed to pyeval evalcode
