@@ -434,3 +434,79 @@ Use =solve.py= to get solution
 
 ** Is it important to understand the structure passed to run_main?
 Or can I just dump the python code object passed to pyeval evalcode
+* 8 snake
+This is the NES one
+
+Flag:
+#+begin_src text
+NARPAS-SWORD@FLARE-ON.COM
+#+end_src
+
+
+** 6502 assembly
+[[https://dwheeler.com/6502/oneelkruns/asm1step.html][6502 Assembly In One Step]]
+
+Stack grows down from 0x1ff to 0x100
+
+STA = store absolute (put accumulator in absolute address)
+
+Little Endian for indirect absolute addressing
+
+There is Indexed Indirect Addressing:
+LDA ($B4,X)
+
+and Indirect Indexed Addressing
+
+LDA ($B4), Y
+
+A <- 16 bit word at $B4 + Y
+
+** Debugging w/ FCEUX
+Can single-step through the beginning of ROM execution by checking the
+"auto-open" button in FCEUX, adding a breakpoint at reset vector (the
+symbolic address RST, see [[http://wiki.nesdev.com/w/index.php/FCEUX_debugger][tips]]) then reopening the ROM
+
+https://wiki.nesdev.com/w/index.php/CHR_ROM_vs._CHR_RAM
+
+"NES has at least two memory chips: PRG (connected to the CPU) and CHR
+(connected to the PPU)". Cartridges may have CHR ROM or CHR RAM chips
+to make tile data available to the PPU. CHR ROM is available to PPU
+"from the moment it turns on"
+
+We're dealing with an iNES header (not iNES2)
+
+Header has a hard-wired "vertical [[https://wiki.nesdev.com/w/index.php/PPU_nametables][nametable]] mirroring"
+
+A nametable is an area of memory used by the PPU to layout backgrounds.
+
+NES resolution is 256x240
+
+According to the header, and [[http://nesdev.com/neshdr20.txt][this]] document, the ROM has /no mapper/.
+
+Writing to address $4017 ("[[https://wiki.nesdev.com/w/index.php/APU_Frame_Counter][APU frame counter]]")  is somewhat confusing.
+We write 0x40, which sets the sequencer mode to 4-step sequence, 1 to
+interrupt inhibit flag.
+
+[[https://wiki.nesdev.com/w/index.php/Init_code][This]] helps with understanding the initial code in the ROM
+
+** Loading
+The PRG-ROM is loaded at $8000 /and/ at $C000 in the NES CPU memory
+([[https://en.wikibooks.org/wiki/NES_Programming/Memory_Map][source]]). Note that this ends up mapping the NMI interrupt vector at
+$FFFA to the 16 bit word at offset 0x400a ($10 + $3ffa == 0x400a) in
+the ROM file, which is 0xc3f0.FCEUX treats $C000 as the entry point.
+
+The CHR ROM is mapped at $0000 in the /PPU/ memory
+
+Since PPUCTRL only has 0 or 0x90 written to it (bit 5 always clear), that means the sprite
+size is 8x8.
+
+Sprites are 16 bytes. 8x8 = 64 pixels * 2 bits per pixel = 128 bits.
+Any pixel whose color is 0 is transparent/takes background color
+
+Seems like flag at $002c indicates whether we are "in game"; I set a
+write breakpoint on there and found that it was being written to by a
+chunk of code not in the "main" chunk. Turns out it's the NMI handler.
+
+There was another =if= check in there for whether some other byte is set
+to $F0. Setting that myself in the memory editor I see the flag
+getting rendered.
