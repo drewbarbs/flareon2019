@@ -505,8 +505,106 @@ Any pixel whose color is 0 is transparent/takes background color
 
 Seems like flag at $002c indicates whether we are "in game"; I set a
 write breakpoint on there and found that it was being written to by a
-chunk of code not in the "main" chunk. Turns out it's the NMI handler.
+chunk of code not in the "main" chunk. Turns out it's the NMI handler
+(which fires during vblank interval)
+
+I was about to go full into reversing the rest of =main= and the NMI
+handler. [[https://wiki.nesdev.com/w/index.php/NMI_thread][This]] seems like it might be an interesting read from a game
+architecture perspective. However, I got the flag in a super easy way:
 
 There was another =if= check in there for whether some other byte is set
 to $F0. Setting that myself in the memory editor I see the flag
 getting rendered.
+* 9 reloadered
+Strings suggest the function of interest is at =0xffff10d0=?
+
+*Seems like stuff goes down at 112d0... investigate this*
+
+Need length to be 11
+
+I fell for the "roter hering" (red hering) because if you use angr on this
+you get RoT3rHeRinG as the key.
+
+*Noticed that sometimes the binary takes
+
+The hint says there are issues with Ghidra. I finally try it, and see
+it is choking on the relocations. Looking at the PE in CFF Explorer, I
+see some peculiarities..
+
+For one thing, there are multiple base relocation blocks for the page
+at RVA 1000.
+
+Sometimes the reloaderd.exe thing doesnt prompt. At those times, it
+doesnt seem like the false key works?
+
+There seem to be some actual relocations, and additional ones? At
+least one relocation changes a code byte.
+
+Also, there's a relocation directory for the page =.reloc= is located in!
+
+Let's look at how loader would process this PE...
+
+1. Image wants to be loaded at 0xFFFF0000 (64K away from maximum 32
+   bit address), =SizeOfImage= is 0x4c000 (304K),
+   mainly because the relocation section is huge! Virtual size 45bb6,
+   raw size 45c00
+
+
+** Next steps
+*** Figure out how to get the binary to load in ghidra
+
+** 12d0
+[a8,b8) -> 160
+[b8-c8) -> 150
+[c8, d8) -> 140
+[d8,dc) -> 130
+[dc] -> 12c
+
+So, intro BB copies 56 bytes from 132a8 (a contiguous block preceding
+=@flare-on.com=) onto stack at =ebp-0x150=
+
+Function ends up doing a bunch of time based stuff in the beginning,
+which introduces some randomness. Under certain circumstances, a
+different prompt appears (=Enter key=, without the reloadered intro
+thing), and at that point there's an =fgets(buf, 14, stdin)=, which
+means the input is at most 13 characters (last one may be a newline,
+which would then subsequently be zerod out to make at most 12 chars).
+
+Finally, we loop over the key, xor'ing it with the buffer at esp+0x70
+= ebp-0x150, which is initialized with 0x38 bytes from 132a8, then
+modified at 1156c
+
+#+begin_src c
+const uint8_t buffer[64] = {
+  0x7a, 0x17, 0x08, 0x34, 0x17, 0x31, 0x3b, 0x25, 0x5b, 0x18,
+  0x2e, 0x3a, 0x15, 0x56, 0x0e, 0x11, 0x3e, 0x0d, 0x11, 0x3b,
+  0x24, 0x21, 0x31, 0x06, 0x3c, 0x26, 0x7c, 0x3c, 0x0d, 0x24,
+  0x16, 0x3a, 0x14, 0x79, 0x01, 0x3a, 0x18, 0x5a, 0x58, 0x73,
+  0x2e, 0x09, 0x00, 0x16, 0x00, 0x49, 0x22, 0x01, 0x40, 0x08,
+  0x0a, 0x14, 0x00, 0x00, 0x00, 0x00, 0x70, 0xfd, 0x1d, 0x00,
+  0x04, 0x00, 0x00, 0x00
+};
+#+end_src
+
+If we xor (buffer[0x34-13:0x34], "@flare-on.com"), we get the code of
+3HeadedMonkey, which reveals the flag
+
+#+begin_src python
+import itertools
+
+buf = [
+  0x7a, 0x17, 0x08, 0x34, 0x17, 0x31, 0x3b, 0x25, 0x5b, 0x18,
+  0x2e, 0x3a, 0x15, 0x56, 0x0e, 0x11, 0x3e, 0x0d, 0x11, 0x3b,
+  0x24, 0x21, 0x31, 0x06, 0x3c, 0x26, 0x7c, 0x3c, 0x0d, 0x24,
+  0x16, 0x3a, 0x14, 0x79, 0x01, 0x3a, 0x18, 0x5a, 0x58, 0x73,
+  0x2e, 0x09, 0x00, 0x16, 0x00, 0x49, 0x22, 0x01, 0x40, 0x08,
+  0x0a, 0x14, 0x00, 0x00, 0x00, 0x00, 0x70, 0xfd, 0x1d, 0x00,
+  0x04, 0x00, 0x00, 0x00
+]
+
+def xor(k, arr):
+    return bytes(bytearray(kb ^ b for kb, b in zip(itertools.cycle(k), arr)))
+
+key = xor(b'@flare-on.com', buf[0x34-13:0x34])
+print(xor(key, buf))
+#+end_src
