@@ -516,16 +516,22 @@ There was another =if= check in there for whether some other byte is set
 to $F0. Setting that myself in the memory editor I see the flag
 getting rendered.
 * 9 reloadered
-Strings suggest the function of interest is at =0xffff10d0=?
+Flag
 
-*Seems like stuff goes down at 112d0... investigate this*
+#+begin_src text
+I_mUsT_h4vE_leFt_it_iN_mY_OthEr_p4nTs?!@flare-on.com
+#+end_src
 
-Need length to be 11
+
+Strings suggest the function of interest is at =0xffff10d0=? This is a *troll*
 
 I fell for the "roter hering" (red hering) because if you use angr on this
 you get RoT3rHeRinG as the key.
 
-*Noticed that sometimes the binary takes
+
+*Seems like stuff goes down at 112d0... investigate this*
+
+*Noticed that sometimes the binary takes longer, doesnt print messag*
 
 The hint says there are issues with Ghidra. I finally try it, and see
 it is choking on the relocations. Looking at the PE in CFF Explorer, I
@@ -542,6 +548,10 @@ least one relocation changes a code byte.
 
 Also, there's a relocation directory for the page =.reloc= is located in!
 
+Key insight was realizing that the relocations actually changed the
+instructions of the intro code (ran before =main=, to branch differently
+and execute some code at 112d0).
+
 Let's look at how loader would process this PE...
 
 1. Image wants to be loaded at 0xFFFF0000 (64K away from maximum 32
@@ -549,6 +559,10 @@ Let's look at how loader would process this PE...
    mainly because the relocation section is huge! Virtual size 45bb6,
    raw size 45c00
 
+** TODO Write a ghidra script to detect when relocation changes /semantics/
+Generally, relocations just change data offsets, but should be
+possible to disassemble bin then determine when a relocation would
+change the actual instruction.
 
 ** Next steps
 *** Figure out how to get the binary to load in ghidra
@@ -608,3 +622,21 @@ def xor(k, arr):
 key = xor(b'@flare-on.com', buf[0x34-13:0x34])
 print(xor(key, buf))
 #+end_src
+
+* 10 Mugatu
+Hints suggest there is some kind of key leakage across encrypted
+samples. Reuse of IV or OTP?
+
+Looking at the very first function called by =entry= (+which might very
+well be a stock CRT function+ *NOPE*, it reverses the imported functions
+from each module with 3 or more imports, screwing with IAT), I wanted
+to remember what was up with the import descriptor table (array of one
+IMAGE_IMPORT_DESCRIPTOR per imported dll), the import address table
+(IAT, an array of IMAGE_THUNK_DATA that is populated as functions are
+linked in. IMAGE_IMPORT_DESCRIPTOR FirstThunk member points to this),
+and the import lookup table (aka import name table). Helpful
+resources:
+
+- https://stackoverflow.com/a/3801692/756104
+- https://web.archive.org/web/20090413060054/http://msdn.microsoft.com/en-us/magazine/cc301808.aspx
+- https://f3real.github.io/iat_hooking.html
