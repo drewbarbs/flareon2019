@@ -640,3 +640,78 @@ resources:
 - https://stackoverflow.com/a/3801692/756104
 - https://web.archive.org/web/20090413060054/http://msdn.microsoft.com/en-us/magazine/cc301808.aspx
 - https://f3real.github.io/iat_hooking.html
+- https://www.exploit-db.com/docs/english/18576-deep-dive-into-os-internals-with-windbg.pdf
+
+I wrote a program to reverse the import name table entries in binary
+so that Ghidra/IDA get the right function names. Figure out RVA to
+file offset mapping
+
+Ok, so the first actual thing the program does is get a "host id"
+composed of a bunch of system parameters (username, IP addresses,
+hostname, etc). Then, it fetches
+http://twitrss.me/twitter_user_to_rss/?user=ACenterForAnts and XORs
+the hostid with the first title in the response
+
+The "title" ends up being
+
+#+begin_src text
+006b9276  49 26 23 78 32 37 3b 6d-20 64 6f 6e 65 2c 4a 61  I&#x27;m done,Ja
+006b9286  63 6f 2e 20 49 20 67 6f-74 20 61 20 70 72 6f 73  co. I got a pros
+006b9296  74 61 74 65 20 74 68 65-20 73 69 7a 65 20 6f 66  tate the size of
+006b92a6  20 61 20 68 6f 6e 65 79-64 65 77 2e 2e 2e 61 6e   a honeydew...an
+006b92b6  64 20 61 20 68 65 61 64-20 66 75 6c 6c 20 6f 66  d a head full of
+006b92c6  20 62 61 64 20 6d 65 6d-6f 72 69 65 73 2e 00 2f   bad memories../
+#+end_src
+
+pubdate ends up being
+
+#+begin_src text
+Wed, 13 Dec 2017 16:55:37 +0000
+#+end_src
+
+Next, the app sends the xor'd hostid (base64'd) to
+mugatu.flare-on.com, gets a base64 response back, which it decodes and
+xor's the first 0x19 bytes of with 0x4d ('M')
+
+=mugatu.flare-on.com= does not actually resolve
+
+Is this decryption function at 402807 really only ever called with a
+len of 0x19?. Probably not, looks like some code is =VirtualProtect='d
+after the whole hostid thing
+
+Need to stub out mugatu.flare-on.com.
+
+1. Response needs to be greater than 0x3a
+2. Needs to be base64 encoded
+3. On the first go, we need the first 0x19 bytes of the response to be
+   "orange mocha frappuccino\x00" XORd with 0x4d. Next 0x14 bytes are
+   passed via mailslot to child, which writes them at offset (0x3c*2)
+   on mailslot name in child
+4. A thread is kicked off which waits on an event, then writes  0x14
+   bytes  to =\\.\mailslot\Let_me_show_you_Derelicte=
+
+Meanwhile, main thread continues to grab a couple bitmap resources.
+One of which it "SRCINVERT"s (see call to =BitBlt=) to get a PE! This PE
+is loaded and the main function creates a thread invoking its entry
+point with a pointer to "CrazyPills" string.
+
+The DLL has a bunch of obfuscation schemes, including flipped imports,
+constructors that initialize strings, etc. Supposed to be named
+=Derelicte.dll=? There's lots of coordination between threads using
+events, mailslot
+
+*TODO* look at function =1001000=
+
+Encrypting logic compares against the constant string "really, really,
+really, ridiculously good looking gifs". Seems to expect that is a
+folder and encrypt only those gif
+
+=__alldiv= instruction takes low, high parts of numerator and
+denominator, returns =n / d= in =EDX:EAX=. /Does not/ give remainder. See [[https://stackoverflow.com/questions/9587742/what-is-alldiv][here]]
+
+Have a XTEA looking algorithm to encrypt the blocks. Also note that
+the key is only 4 bytes long! Given that knowledge, the filename
+=the_key_to_success_0000.gif.Mugatu= makes sense: the file must have
+been encrypted with the 4 byte key ={0, 0, 0, 0}=. So, we decrypt that
+file and get a gif that tells us the first byte of the key is 0x31.
+This might make it feasible to brute force
