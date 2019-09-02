@@ -624,6 +624,12 @@ print(xor(key, buf))
 #+end_src
 
 * 10 Mugatu
+flag:
+#+begin_src text
+FL4rE-oN_5o_Ho7_R1gHt_NoW@flare-on.com
+#+end_src
+
+
 Hints suggest there is some kind of key leakage across encrypted
 samples. Reuse of IV or OTP?
 
@@ -709,9 +715,9 @@ folder and encrypt only those gif
 =__alldiv= instruction takes low, high parts of numerator and
 denominator, returns =n / d= in =EDX:EAX=. /Does not/ give remainder. See [[https://stackoverflow.com/questions/9587742/what-is-alldiv][here]]
 
-Have a XTEA looking algorithm to encrypt the blocks. Also note that
-the key is only 4 bytes long! Given that knowledge, the filename
-=the_key_to_success_0000.gif.Mugatu= makes sense: the file must have
-been encrypted with the 4 byte key ={0, 0, 0, 0}=. So, we decrypt that
-file and get a gif that tells us the first byte of the key is 0x31.
-This might make it feasible to brute force
+Have a XTEA looking algorithm (found by googling constant) to encrypt
+the blocks. Also note that the key is only 4 bytes long! Given that
+knowledge, the filename =the_key_to_success_0000.gif.Mugatu= makes
+sense: the file must have been encrypted with the 4 byte key ={0, 0, 0,
+0}=. So, we decrypt that file and get a gif that tells us the first
+byte of the key is 0x31. This might make it feasible to brute force

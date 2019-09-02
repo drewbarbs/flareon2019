@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
   fread(pbuf, 1, fsize, f);
   fclose(f);
 
-  const uint32_t key[4] = {0, 0, 0, 0};
+  const uint32_t key[4] = {0x31, 0x73, 0x35, 0xb1};
 
   cipher_fun cipher = arg1 == 0 ? decipher : encipher;
 
