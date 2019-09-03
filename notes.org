@@ -721,3 +721,31 @@ knowledge, the filename =the_key_to_success_0000.gif.Mugatu= makes
 sense: the file must have been encrypted with the 4 byte key ={0, 0, 0,
 0}=. So, we decrypt that file and get a gif that tells us the first
 byte of the key is 0x31. This might make it feasible to brute force
+
+* 11 vv_max
+
+Hint is "at least it's not subleq"
+
+I know pretty much nothing about AVX, time to learn....
+
+YMM0-YMM15 are 256 bit registers.
+
+Looks like we're working with VEX.256 encoding? (32 byte registers)
+
+See
+https://www.codeproject.com/Articles/874396/Crunching-Numbers-with-AVX-and-AVX ?
+
+The argv1 and argv2 are written into VM instructions, used to
+initialize r0 and r1
+
+argv1 needs to have length in [4, 0x20]
+
+The =if= in =check_and_print_results= suggests =argv1= /must/ be "FLARE2019"
+
+argv2 length /must/ be 0x20
+
+** DONE Does angr/VEX support AVX2 instructions?
+Yep, it does!
+
+** TODO Making a plain linux equivalent
+See https://software.intel.com/sites/landingpage/IntrinsicsGuide/#expand=5236,4201&text=vpermd&techs=SSE,SSE2,SSE3,SSSE3,SSE4_1,SSE4_2,AVX,AVX2
