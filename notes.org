@@ -1,7 +1,7 @@
-* General
-All the challenges come in a .7z file with password "flare"
+#+TITLE: Flare-on 6 Solution Notes
 
-* 1 Memecat
+All the challenges come in a .7z file with password "flare"
+* Memecat
 zip password is "flare"
 
 This is a .NET executable
@@ -16,7 +16,7 @@ key:
 Kitteh_save_galixy@flare-on.com
 #+end_src
 
-* 2 Overlong
+* Overlong
 
 radare2 immediately decodes the string:
 #+begin_src text
@@ -26,7 +26,7 @@ I_a_M_t_h_e_e_n_C_o_D_i_n_g@flare-on.com
 You just need to extend the length passed to the decoding function and
 run the bin, that will also pritn the key.
 
-* 3 Flarebear
+* Flarebear
 Flag:
 #+begin_src text
 th4t_was_be4rly_a_chall3nge@flare-on.com
@@ -34,8 +34,7 @@ th4t_was_be4rly_a_chall3nge@flare-on.com
 
 Used [[https://github.com/budtmo/docker-android][this]] emulator
 
-
-It's an apk, so might need to get  an emulator goign?
+It's an apk, so might need to get  an emulator going?
 
 Used dex2jar. See the FlareBearActivity has a getPassword function
 that gives decryption key?
@@ -44,13 +43,13 @@ The isEcstatic function checks for mass of 72, happy of 30, clean of
 false (0)
 
 
-clean increments mass by 0, happy by -1, clean by 6
-feed increments mass by 10, happy by 2, clean by -1
-play increments mass by -2, happy by 4, clean by -1
+- clean increments mass by 0, happy by -1, clean by 6
+- feed increments mass by 10, happy by 2, clean by -1
+- play increments mass by -2, happy by 4, clean by -1
 
 Linear system:
 
-#+begin_src python
+#+begin_src python :results output
 import numpy as np
 from numpy.linalg import inv
 
@@ -71,13 +70,13 @@ b = np.array([
 print(inv(A) @ b)
 #+end_src
 
-
-
-8 * feed  = 80, 16, -8
-8 * play  = -16
+#+RESULTS:
+: [[2.]
+:  [8.]
+:  [4.]]
 
 *need 2 cleans, 8 feeds, 4 plays*
-* 4 DNSChess
+* DNSChess
 Flag:
 
 #+begin_src text
@@ -93,8 +92,8 @@ Looking at pcap first, I clearly see chess moves in queries, do
 responses have moves as well?
 
 
-Looks like the flag is xor'd 2 bytes at a time with the second byte of
-the returned address.
+Looks like the flag is xor'd 2 bytes at a time with the second octet of
+the returned (ipv4) address.
 
 Expecting game over in 15 moves.
 
@@ -106,9 +105,9 @@ what order.
 First, the last octet of the IP address needs to be even. There are 15
 such responses. Then, the last 4 bits of the second-to-last octet need
 to be equal to the move number (this gives an ordering). The key byte
-is composed of the second octet of those ips in that order. See =do.py=.
+is composed of the second octet of those ips in that order. See [[./4_dnschess/do.py]]
 
-* 5 demo
+* demo
 
 Flag:
 
@@ -118,18 +117,18 @@ moar_poetry@flare-on.com
 
 ** Solution
 
-Dump binary after it's been decrypted and is in render loop. Figure
+Dump binary after it's been unpacked and is in render loop. Figure
 out the binary creates /two/ meshes, and renders them with different
-transforms. Figure one of them must be the flare logo, the other the
+transforms.Guess one of them must be the flare logo, the other the
 flag.
 
 Do some patching in the =Update= function. NOP-out (replace with =add
 esp, N= instructions) the =D3DXMatrixMultiply= and =SetTransform= calls
-preceding draw of flag mesh. As well as NOP out logo mesh.
+preceding draw of flag mesh. As well as NOP out draw of logo mesh.
 
 ** Notes
 
-Looks like the demo decrypts itself. It's got a single =rwx= section.
+Looks like the demo "decrypts" itself. It's got a single =rwx= section.
 
 Unpacking to address 0x420000
 
@@ -177,7 +176,7 @@ at render loop:
     41f000 1f83b6eb 1f41c6eb MEM_IMAGE   MEM_COMMIT  PAGE_EXECUTE_READWRITE             Image      [image00400000; "image00400000"]
 #+end_src
 
-Looks like a symbol table is being assembled at 430000.
+Looks like an import table is being assembled at 430000.
 
 After the demo is running we have
 
@@ -205,7 +204,7 @@ On entry to =420000=, pointer to PEB is on stack (so =pop eax= loads =pPEB=
 into =eax=)
 
 ** TODO See how this is done quickly...
-* 6 bmphide
+* bmphide
 
 Flag: (run =solve.py= on =image.bmp=, then /again/ on the BMP that extracts..)
 #+begin_src text
@@ -218,9 +217,9 @@ Note that in .NET, args to Main /do not/ include name of the executable
 file. [[https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/inside-a-program/hello-world-your-first-program][src]]
 
 Usage is:
-1st arg: path to bitmap
-2nd arg: path to file to incorporate into image
-3rd arg: path to output bitmap
+- 1st arg: path to bitmap
+- 2nd arg: path to file to incorporate into image
+- 3rd arg: path to output bitmap
 
 Can't debug with dnSpy? I get a stack overflow
 exception on start....
@@ -240,9 +239,6 @@ Program.a <- Program.b
 Program.c <- Program.d
 #+end_src
 
-The =IdentifyLocals= function does some kind of changing of the calling
-convention thing that ends up causing the overflow..
-
 ** Solve
 Iterate over the image in /column major/ order, extract "transformed"
 bytes.
@@ -254,9 +250,9 @@ Iterate over transformed bytes, reverse the conversion.
 - Edit =a= to return =Program.b(b, r)=
 - Edit =c= to return =Program.d(b, r)=
 - Edit the IL of =h=:
-  - write byte 20 (0x14) to offset 23 in IL (call to =Program.f= becomes call
+ - write byte 20 (0x14) to offset 23 in IL (call to =Program.f= becomes call
     to =Program.g=)
-  - write byte 20 (0x14) to offset 62 in IL (another kind of relative call ofset)
+ - write byte 20 (0x14) to offset 62 in IL (another kind of relative call offset)
 - Edit the IL of =g=:
 
   Changes the function body to be:
@@ -349,7 +345,7 @@ The IncrementMaxStack bit screws with the IL of the =Program.h= and
 =Program.g= methods (can use dnSpy's right click->goto MD token feature
 to quickly find that).
 
-* 7 wopr
+* wopr
 
 Flag:
 #+begin_src text
@@ -368,7 +364,7 @@ in =AppData\Local\Temp=.
 Sets =_MEIPASS2=C:\Users\IEUser\AppData\Local\Temp\_MEI5602= ; this is
 probably used as a signal pointing to where the stuff has been written?
 
-Probably something to =this\key= in that temp folder
+Probably some significance to =this\key= file in that temp folder
 
 exec main script at 402160?
 
@@ -378,17 +374,17 @@ Run =.childdbg= to enable tracing child process in windbg
 
 Dump the marshalled code:
 
-1. dump pymarshal_readobjectfromstring argument
-2. Load in python with marshal.load
+1. dump =pymarshal_readobjectfromstring= argument
+2. Load in python with =marshal.load=
 
 Turns out this loading a common bit of code from PyInstaller (lots of
-google hits): pyiboot01_bootstrap.py
+google hits): =pyiboot01_bootstrap.py=
 
 Loads:
--  pyiboot01_bootstrap.py
-- pyiboot02_cleanup.py
+-  =pyiboot01_bootstrap.py=
+- =pyiboot02_cleanup.py=
 
-Execution of pyiboot02_cleanup.py seems to be where the actual game
+Execution of =pyiboot02_cleanup.py= seems to be where the actual game
 logic is (that PyEval call blocks...)
 
 Dumped the 2nd code object, got source with uncompyle6:
@@ -408,7 +404,7 @@ with open('out.py', 'w') as out:
 
 That gets =compressed.bin=, which we can =xzcat= to get the game
 
-break on module load _lzma. then set conditional breakpoint:
+break on module load =_lzma=. then set conditional breakpoint:
 
 #+begin_src text
 bp _lzma+1e4f ".if (eax) {} .else {gc}"
@@ -432,17 +428,13 @@ h = [115, 29, 32, 68, 106, 108, 89, 76, 21, 71, 78, 51, 75, 1, 55, 102]
 
 Use =solve.py= to get solution
 
-** Is it important to understand the structure passed to run_main?
-Or can I just dump the python code object passed to pyeval evalcode
-* 8 snake
+* snake
 This is the NES one
 
 Flag:
 #+begin_src text
 NARPAS-SWORD@FLARE-ON.COM
 #+end_src
-
-
 ** 6502 assembly
 [[https://dwheeler.com/6502/oneelkruns/asm1step.html][6502 Assembly In One Step]]
 
@@ -515,7 +507,7 @@ architecture perspective. However, I got the flag in a super easy way:
 There was another =if= check in there for whether some other byte is set
 to $F0. Setting that myself in the memory editor I see the flag
 getting rendered.
-* 9 reloadered
+* reloadered
 Flag
 
 #+begin_src text
@@ -531,7 +523,7 @@ you get RoT3rHeRinG as the key.
 
 *Seems like stuff goes down at 112d0... investigate this*
 
-*Noticed that sometimes the binary takes longer, doesnt print messag*
+*Noticed that sometimes the binary takes longer, doesnt print message*
 
 The hint says there are issues with Ghidra. I finally try it, and see
 it is choking on the relocations. Looking at the PE in CFF Explorer, I
@@ -559,15 +551,13 @@ Let's look at how loader would process this PE...
    mainly because the relocation section is huge! Virtual size 45bb6,
    raw size 45c00
 
-** TODO Write a ghidra script to detect when relocation changes /semantics/
+** TODO Write a ghidra script to detect when relocation changes /instruction/
 Generally, relocations just change data offsets, but should be
 possible to disassemble bin then determine when a relocation would
-change the actual instruction.
+change the actual instruction (at least, changes what disassembler
+determines to be an instruction)
 
-** Next steps
-*** Figure out how to get the binary to load in ghidra
-
-** 12d0
+** BB at 12d0
 [a8,b8) -> 160
 [b8-c8) -> 150
 [c8, d8) -> 140
@@ -623,23 +613,19 @@ key = xor(b'@flare-on.com', buf[0x34-13:0x34])
 print(xor(key, buf))
 #+end_src
 
-* 10 Mugatu
+* Mugatu
 flag:
 #+begin_src text
 FL4rE-oN_5o_Ho7_R1gHt_NoW@flare-on.com
 #+end_src
 
-
-Hints suggest there is some kind of key leakage across encrypted
-samples. Reuse of IV or OTP?
-
 Looking at the very first function called by =entry= (+which might very
 well be a stock CRT function+ *NOPE*, it reverses the imported functions
 from each module with 3 or more imports, screwing with IAT), I wanted
 to remember what was up with the import descriptor table (array of one
-IMAGE_IMPORT_DESCRIPTOR per imported dll), the import address table
-(IAT, an array of IMAGE_THUNK_DATA that is populated as functions are
-linked in. IMAGE_IMPORT_DESCRIPTOR FirstThunk member points to this),
+=IMAGE_IMPORT_DESCRIPTOR= per imported dll), the import address table
+(IAT, an array of =IMAGE_THUNK_DATA= that is populated as functions are
+linked in. =IMAGE_IMPORT_DESCRIPTOR= =FirstThunk= member points to this),
 and the import lookup table (aka import name table). Helpful
 resources:
 
@@ -720,9 +706,17 @@ the blocks. Also note that the key is only 4 bytes long! Given that
 knowledge, the filename =the_key_to_success_0000.gif.Mugatu= makes
 sense: the file must have been encrypted with the 4 byte key ={0, 0, 0,
 0}=. So, we decrypt that file and get a gif that tells us the first
-byte of the key is 0x31. This might make it feasible to brute force
+byte of the key is 0x31. This makes it more feasible to brute force
 
-* 11 vv_max
+* =vv_max=
+
+Flag:
+#+begin_src text
+AVX2_VM_M4K3S_BASE64_C0MPL1C4T3D@flare-on.com
+#+end_src
+
+Generated when you pass "FLARE2019" as first argument,
+"cHCyrAHSXmEKpyqoCByGGuhFyCmy86Ee" as second argument
 
 Hint is "at least it's not subleq"
 
@@ -747,5 +741,244 @@ argv2 length /must/ be 0x20
 ** DONE Does angr/VEX support AVX2 instructions?
 Yep, it does!
 
-** TODO Making a plain linux equivalent
-See https://software.intel.com/sites/landingpage/IntrinsicsGuide/#expand=5236,4201&text=vpermd&techs=SSE,SSE2,SSE3,SSSE3,SSE4_1,SSE4_2,AVX,AVX2
+** DONE Making a plain linux equivalent
+Make a linux binary that does the same thing as the VM instructions,
+which can easily be solved with angr.
+
+Reference https://software.intel.com/sites/landingpage/IntrinsicsGuide/#expand=5236,4201&text=vpermd&techs=SSE,SSE2,SSE3,SSSE3,SSE4_1,SSE4_2,AVX,AVX2
+
+Ended up writing converter program: [[./11_vv_max/convert.py]]
+
+Generated =converted= binary that I solved with =./11_vv_max/solve.py=.
+
+* help
+
+Determined that the keepass password is "=Th!s_iS_th3_3Nd!!!=" using =john=
+
+According to [[https://developers.whatismybrowser.com/useragents/parse/#parse-useragent][this site]], the user agent string used in the requests to
+flare-on.com (below) corresponds to Chrome 75 on Windows 7
+
+#+begin_src text
+Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36
+#+end_src
+
+I'm able to run volatility with
+
+#+begin_src shell
+vol.py --profile=Win7SP1x64 -f help.dmp pslist
+#+end_src
+
+The pslist has a =KeePass.exe= process. Look into that...
+Ran =memdump= on process 2658, found Keepass header in there (see [[https://keepass.info/help/base/repair.html][here]])
+
+[[https://stackoverflow.com/questions/1649117/analysing-crash-dump-in-windbg][This]] page had some useful windbg commands.
+windbg =!analyze -v= shows crash in =man.sys=
+
+Volatility "screenshot" shows google search "Is encrypting something
+twice better than once?"
+
+** pcap
+What's up with the garbage I'm seeing sent to 4444? My RE suggests the
+first 4 bytes should be a message length, but all the traffic I'm
+seeing in the PCAP has /ridiculous/ lengths.
+
+** the =man.sys= file
+Havent gotten a valid PE (because the driver zeros out its beginning...), but did dump the section of memory
+corresponding to =man= and see it allocating/freeing from pool with tag "FLAR"
+
+We see the registry path is
+=\REGISTRY\MACHINE\SYSTEM\ControlSet001\services\inc.exe=
+
+Registers a handler for every IRP...
+
+see
+https://github.com/microsoft/Windows-driver-samples/blob/516d94ce47bd535dc813d654297ace02c61d46f6/filesys/miniFilter/minispy/user/mspyLog.h#L280
+for codes
+
+#+begin_src c
+#define IRP_MJ_CREATE                       0x00
+#define IRP_MJ_CREATE_NAMED_PIPE            0x01
+#define IRP_MJ_CLOSE                        0x02
+#define IRP_MJ_READ                         0x03
+#define IRP_MJ_WRITE                        0x04
+#define IRP_MJ_QUERY_INFORMATION            0x05
+#define IRP_MJ_SET_INFORMATION              0x06
+#define IRP_MJ_QUERY_EA                     0x07
+#define IRP_MJ_SET_EA                       0x08
+#define IRP_MJ_FLUSH_BUFFERS                0x09
+#define IRP_MJ_QUERY_VOLUME_INFORMATION     0x0a
+#define IRP_MJ_SET_VOLUME_INFORMATION       0x0b
+#define IRP_MJ_DIRECTORY_CONTROL            0x0c
+#define IRP_MJ_FILE_SYSTEM_CONTROL          0x0d
+#define IRP_MJ_DEVICE_CONTROL               0x0e
+#define IRP_MJ_INTERNAL_DEVICE_CONTROL      0x0f
+#define IRP_MJ_SHUTDOWN                     0x10
+#define IRP_MJ_LOCK_CONTROL                 0x11
+#define IRP_MJ_CLEANUP                      0x12
+#define IRP_MJ_CREATE_MAILSLOT              0x13
+#define IRP_MJ_QUERY_SECURITY               0x14
+#define IRP_MJ_SET_SECURITY                 0x15
+#define IRP_MJ_POWER                        0x16
+#define IRP_MJ_SYSTEM_CONTROL               0x17
+#define IRP_MJ_DEVICE_CHANGE                0x18
+#define IRP_MJ_QUERY_QUOTA                  0x19
+#define IRP_MJ_SET_QUOTA                    0x1a
+#define IRP_MJ_PNP                          0x1b
+#define IRP_MJ_MAXIMUM_FUNCTION             0x1b
+
+#+end_src
+** Crashing thread
+Crash in thread func at =fffff880033bdce7=. Thread =fffffa80040c65c0=
+Parent frame is =PspSystemThreadStartup=, the following thread is
+/waiting/ on that thread:
+
+#+begin_src text
+        THREAD fffffa80035ba060  Cid 036c.00a0  Teb: 000007fffffda000 Win32Thread: 0000000000000000 WAIT: (Executive) KernelMode Non-Alertable
+            fffffa80040c65c0  Thread
+        IRP List:
+            fffffa80041c5010: (0006,0118) Flags: 00060030  Mdl: 00000000
+        Not impersonating
+        DeviceMap                 fffff8a000008b30
+        Owning Process            fffffa80034a4b30       Image:         svchost.exe
+        Attached Process          N/A            Image:         N/A
+        Wait Start TickCount      189638         Ticks: 1 (0:00:00:00.015)
+        Context Switch Count      5              IdealProcessor: 0
+        UserTime                  00:00:00.015
+        KernelTime                00:00:00.000
+        Win32 Start Address 0x0000000000b12bd0
+        Stack Init fffff88002875c70 Current fffff88002874ed0
+        Base fffff88002876000 Limit fffff88002870000 Call 0
+        Priority 10 BasePriority 8 UnusualBoost 0 ForegroundBoost 0 IoPriority 2 PagePriority 5
+        Child-SP          RetAddr           Call Site
+        fffff880`02874f10 fffff800`02ac30f2 nt!KiSwapContext+0x7a
+        fffff880`02875050 fffff800`02ac590f nt!KiCommitThreadWait+0x1d2
+        fffff880`028750e0 fffff880`033beb8c nt!KeWaitForSingleObject+0x19f
+        fffff880`02875180 fffffa80`03f9cc00 man+0x2b8c
+        fffff880`02875188 fffffa80`00000000 0xfffffa80`03f9cc00
+        fffff880`02875190 fffff880`02875700 0xfffffa80`00000000
+        fffff880`02875198 00000000`00000000 0xfffff880`02875700
+#+end_src
+
+The parent frame has frame base at =fffff88002875720= (so =ObCreateObject=
+is at offset =-b8= from that)
+
+Turns out this driver only has a single method, which copies and
+executes more code....
+
+Driver name is =\D\FL_DL_1=, thread object name is
+=\Driver\FLARE_Loaded_1= . It creates a device object at =\Device\FLSC= (=\??\FLSC=)
+
+The driver image is at fffffa80`03f9c100. It crashes because it's a 32
+bit driver...
+** TODO =inject.dll=
+*** TODO work out the rest of the exception handlers
+Note that the .sys file has an embedded DLL, which i've called
+"inject.dll". I see it has the string "FLID" in it. Referenced from
+function at 2080, but not sure how the code gets there? The DLL has an
+RC4 function, which I also recognize in the driver
+
+It seems like the DLL loops while waiting for an atomic flag to
+change, does the driver change it?
+
+*I SEE THE DLL BINDS 4444*
+
+Looking at dump in windbg I first do =!process 0 0 svchost.exe= to find
+the EPROCESS for pid 0n876 (0x36c). Then I do a =!process <EPROCESS
+addr>= to get the threads (see threadlog.txt). A few seem interesting.
+THREAD fffffa80024a4910 appears to be the one waiting for connections
+
+** Thread fffffa800241e060
+THREAD fffffa800241e060 also seems interesting. Helpfully, switching
+to thread with =.thread=, the =child sp= value for the frame in =man=
+corresponds to =rsp= in function def pretty well. So =rsp+a8= is where
+=NtCreateThreadEx= pointer is stored. Parent frame  is at RIP
+=fffff880033c02f9=, SP =fffff880034fa650=. Node* p1 is stored at stack address
+=fffff880034fa710=, pointer value is fffffa8004059f80
+
+He's doing a cmd 22f378. =do_device_control= SP at fffff880`034fa7e0,
+IP at fffff880`033c0f6d
+
+#+begin_src text
+dt -b _IO_STACK_LOCATION fffffa80`03e93550
+dt _IRP fffffa80`03e93480
+#+end_src
+
+Input buffer comes in on pIRP->AssociatedIRP.SytemBuffer (buffered
+IO).
+
+this thread is waiting on thread =fffffa8004130260= in explorer.exe
+process (fffffa8003614910)
+
+The parameter buffer is a number of seconds  that the user thread in =explorer.exe=
+(=injectexplorer.dll= 0x2404257) should wait on the thread /it/ creates.
+That thread registers a "low level keyboard input events" hook (via
+=SetWindowsHookEx=) and a hook to monitor when the foreground window changes.
+
+*HUGE HELP*: =.thread /p /r <threadId>= ([[https://stackoverflow.com/questions/22249728/switching-to-user-stack-in-kernel-dumps][src]])
+
+Walk in-memory captures keystrokes:
+
+#+begin_src text
+!list "-t _LIST_ENTRY.Flink -x \"da (@$extret + 10); dd (@$extret+814) l1\" poi(2406260)"
+#+end_src
+=000000000a1b7f70= has ("+\x01isth33nd111."). Elsewhere in memory is
+"th1sisth33nd111" (fullstring). those 1s might be "!"?
+still cant get the db to decrypt...
+
+Looks like (looking at function at =fffff880033bf9e0=) bool at 0x69
+indicates whether node is +used for exfil+ used for postprocessing. The data is compressed (LZ)
+and rc4'd with username (up to 0x104 chars). Username is
+
+Return buf is passed to DIOC_23eaf0 (node id fabadada). Looks like
+=exfilnode= is one with bool at 0x68 set. (Node struct at fffffa800339aa80)
+
+So, exfil happens in process fffffa80034a4b30, pdll at d700000
+
+Data is sent to 192.168.1.243, but lots of that traffic is garbage.
+Port number determined by looking up field 6c in node corresponding to
+nodeid, which is passed as argument.
+
+
+I've done the ones with entry at
+
+3810 (explorer hook)
+2100 (supposed exfil hook)
+1660 postprocess hook
+3f80 server hook
+
+** Walking the list in kernel module
+Print id/EPROCESS for each entry in list
+#+begin_src text
+!list "-t _LIST_ENTRY.Flink -x \"dd (@$extret-8) l1; dq (@$extret-8 + 70) l1\" poi(fffff880033c8158)"
+#+end_src
+
+#+begin_src text
+kd> !list "-t _LIST_ENTRY.Flink -x \"dd (@$extret-8) l1; dq (@$extret-8 + 70) l1\" poi(fffff880033c8158)"
+fffffa80`040a11e0  bebebebe
+fffffa80`040a1250  fffffa80`035fd060 # dwm.exe
+
+fffffa80`0339aa80  dededede
+fffffa80`0339aaf0  fffffa80`034a4b30 # svchost.exe
+
+fffffa80`04059f80  fabadada
+fffffa80`04059ff0  fffffa80`03614910 # explorer.exe
+
+fffffa80`04161da0  beda4747
+fffffa80`04161e10  fffffa80`03614910 # exporer.exe
+
+fffffa80`0426f290  defa8474
+fffffa80`0426f300  fffffa80`01d42060 # procexp64.exe
+
+#+end_src
+
+
+Looks like the garbage from network makes its way to explorer.exe
+
+*** DONE Find mapped DLL in process, what's up with the int3 in listen thread?
+This particular int3 triggers the exception handler at =4da0=!
+
+*** TODO Questions to answer:
+- How many different DLLs are getting injected?
+- What does the one that was injected into explorer.exe do?
+- When do items get /added/ to the list?
+- For RC4'd things... are they all rc4'd with same key?
