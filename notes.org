@@ -339,8 +339,6 @@ private unsafe static void IdentifyLocals()
 		}
 #+end_src
 
-The clrjit vftable looks like this:
-
 The IncrementMaxStack bit screws with the IL of the =Program.h= and
 =Program.g= methods (can use dnSpy's right click->goto MD token feature
 to quickly find that).
@@ -978,7 +976,7 @@ Looks like the garbage from network makes its way to explorer.exe
 This particular int3 triggers the exception handler at =4da0=!
 
 *** TODO Questions to answer:
-- How many different DLLs are getting injected?
-- What does the one that was injected into explorer.exe do?
-- When do items get /added/ to the list?
-- For RC4'd things... are they all rc4'd with same key?
+- [ ] How many different DLLs are getting injected?
+- [X] What does the one that was injected into explorer.exe do?
+  It captures screenshots
+- [ ] When do items get /added/ to the list?
