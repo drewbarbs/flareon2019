@@ -50,10 +50,10 @@ def PRGA(S):
 
 
 def RC4(key):
-    S = KSA(key)
+    S = KSA(bytearray(key))
     return PRGA(S)
 
 
-def rc4decrypt(key: bytes, buf: bytes):
+def rc4decrypt(key, buf):
     keystream = RC4(key)
-    return bytes(bytearray(b ^ k for b, k in zip(buf, keystream)))
+    return bytes(bytearray(b ^ k for b, k in zip(bytearray(buf), keystream)))
