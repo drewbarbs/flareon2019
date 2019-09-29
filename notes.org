@@ -623,7 +623,7 @@ from each module with 3 or more imports, screwing with IAT), I wanted
 to remember what was up with the import descriptor table (array of one
 =IMAGE_IMPORT_DESCRIPTOR= per imported dll), the import address table
 (IAT, an array of =IMAGE_THUNK_DATA= that is populated as functions are
-linked in. =IMAGE_IMPORT_DESCRIPTOR= =FirstThunk= member points to this),
+linked in. =IMAGE_IMPORT_DESCRIPTOR::FirstThunk= member points to this),
 and the import lookup table (aka import name table). Helpful
 resources:
 
