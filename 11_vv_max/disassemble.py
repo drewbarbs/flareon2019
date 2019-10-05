@@ -1,11 +1,9 @@
+#!/usr/bin/env python3
 import binascii
-import r2pipe
 
-r = r2pipe.open('vv_max.exe')
-r.cmd('s 0x140015350')
-code = r.cmdj('pxj 1531')
-r.quit()
+import cle
 
+# Descriptions of each VM bytecode instruction, in opcode order
 INSTRS = [
     {'mnemonic': 'clearregs', 'args': []},
     {'mnemonic': 'vpmaddubsw', 'args': ['r', 'r', 'r']},
@@ -33,12 +31,16 @@ INSTRS = [
     {'mnemonic': 'nop', 'args': []}
 ]
 
+vv_max = cle.Loader('vv_max.exe')
+vv_max.memory.seek(0x140015350)
+code = vv_max.memory.read(0x5fb)
+
 offset = 0
 while code and code[0] != 0xff:
-    code_offset = offset
-    instr, code, offset = code[0], code[1:], (offset + 1)
+    instr_offset = offset
+    opcode, code, offset = code[0], code[1:], (offset + 1)
     args = []
-    for a in INSTRS[instr]['args']:
+    for a in INSTRS[opcode]['args']:
         if a == 'r':
             rnum, code, offset = code[0], code[1:], (offset + 1)
             args.append(f'r{rnum}')
@@ -51,5 +53,5 @@ while code and code[0] != 0xff:
         else:
             raise Exception(f'Unrecognized argument type {a}')
     arglist = ', '.join(args)
-    line = f'{code_offset}:\t{INSTRS[instr]["mnemonic"]} {arglist}'
+    line = f'{instr_offset:>4}:\t{INSTRS[opcode]["mnemonic"]} {arglist}'
     print(line)

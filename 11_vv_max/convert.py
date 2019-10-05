@@ -1,19 +1,12 @@
-import binascii
+#!/usr/bin/env python3
 import textwrap
 
-import r2pipe
-
-from collections import Counter
-
-r = r2pipe.open('vv_max.exe')
-r.cmd('s 0x140015350')
-code = r.cmdj('pxj 1531')
-r.quit()
+import cle
 
 INSTRS = [
     {},  # clearregs, dont bother implementing
     {'mnemonic': 'vpmaddubsw', 'args': ['r', 'r'], 'intrinsic': '_mm256_maddubs_epi16'},
-    {'mnemonic': 'vpmaddwd', 'args': ['r', 'r'], 'intrinsic': '_mm256_madd_epi16'},
+    {'mnemonic': 'vpmaddwd', 'args': ['r', 'r'], 'intrinsic': 'do_vpmaddwd'},
     {'mnemonic': 'vpxor', 'args': ['r', 'r'], 'intrinsic': '_mm256_xor_si256'},
     {'mnemonic': 'vpor', 'args': ['r', 'r'], 'intrinsic': '_mm256_or_si256'},
     {'mnemonic': 'vpand', 'args': ['r', 'r'], 'intrinsic': '_mm256_and_si256'},
@@ -40,53 +33,62 @@ INSTRS = [
 TEMPLATE = '''
 #include <immintrin.h>
 
-{initializers}
+{constants}
+
+{vpmaddwd_implementation}
 
 int main(int argc, char **argv) {{
-
-{zero_init}
-
+    // Code to initialize variables r0-r31 to zero
+{zero_init_regs}
+    // Converted bytecode
 {body}
 
+    // Replicate the checks from the function at 140001610 of vv_max.exe
     __m256i cmpresult = _mm256_cmpeq_epi8(r2, r20);
     int32_t result = _mm256_movemask_epi8(cmpresult);
 
-    if (result == -1) {{
-        return 0;
-    }} else {{
-        return 1;
-    }}
-
+    // We want result == -1
+    return result;
 }}
 '''
 
-init_counter = Counter()
+VPMADDWD_IMPLEMENTATION = '''
+__m256i do_vpmaddwd(__m256i a, __m256i b) {
+    int32_t intermediate[16] = {0};
+    int32_t result[8] = {0};
+    for (int i = 0; i < 16; ++i) {
+        intermediate[i] = ((int16_t*)&a)[i] * ((int16_t*)&b)[i];
+    }
+
+    for (int i = 0; i < 8; ++i) {
+        result[i] = intermediate[2*i] + intermediate[2*i + 1];
+    }
+
+    return _mm256_loadu_si256((__m256i const *)result);
+}
+'''
+
+vv_max = cle.Loader('vv_max.exe')
+vv_max.memory.seek(0x140015350)
+code = vv_max.memory.read(0x5fb)
+
 code = code[1:]  # skip the first instruction "clearregs"
-initializers = []
+constants = []
 statements = []
 
 while code and code[0] != 0xff:
-    instr, dstreg, code = code[0], code[1], code[2:]
+    opcode, dstreg, code = code[0], code[1], code[2:]
 
-    if INSTRS[instr]['mnemonic'] == 'movimm':
+    if INSTRS[opcode]['mnemonic'] == 'movimm':
         immediate, code = code[:32], code[32:]
-        if dstreg == 0:
-            immediate = b'FLARE2019'
-            immediate += b'\x00'*(32 - len(immediate))
-        elif dstreg == 1:
-            import string
-            immediate = string.ascii_letters[:32].encode('utf8')
-
         immarr = '{' + ', '.join(hex(b) for b in immediate) + '}'
-        initcount = init_counter[dstreg]
-        init_counter[dstreg] += 1
-        initsym = f'R{dstreg}_INIT{initcount}'
-        initdecl = f'const char {initsym}[32] = {immarr};'
-        initializers.append(initdecl)
-        statements.append(f'r{dstreg} = _mm256_loadu_si256((__m256i const *){initsym});')
+        constsym = f'CONST{len(constants)}'
+        constdecl = f'const char {constsym}[32] = {immarr};'
+        constants.append(constdecl)
+        statements.append(f'r{dstreg} = _mm256_loadu_si256((__m256i const *){constsym});')
         continue
 
-    instrinfo = INSTRS[instr]
+    instrinfo = INSTRS[opcode]
     args = []
     for argtype in instrinfo['args']:
         if argtype == 'r':
@@ -102,10 +104,11 @@ while code and code[0] != 0xff:
     statements.append(f'r{dstreg} = {intrinsic}({arglist});')
 
 src = TEMPLATE.format(
-    initializers='\n'.join(initializers),
-    zero_init=textwrap.indent('\n'.join(f'__m256i r{i} = _mm256_setzero_si256();'
-                                        for i in range(32)),
-                              ' '*4),
+    constants='\n'.join(constants),
+    vpmaddwd_implementation=VPMADDWD_IMPLEMENTATION,
+    zero_init_regs=textwrap.indent('\n'.join(f'__m256i r{i} = _mm256_setzero_si256();'
+                                             for i in range(32)),
+                                   ' '*4),
     body=textwrap.indent('\n'.join(statements), ' '*4))
 
 print(src)
